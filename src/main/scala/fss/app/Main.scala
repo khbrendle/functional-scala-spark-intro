@@ -8,6 +8,14 @@ import zio.{ExitCode, Has, ZEnv, ZIO}
 import zio.blocking.Blocking
 import zio.console.{Console, putStrLn}
 
+/** Main is our application entry point. We split into 2 parts
+  *
+  * The first part is `prog` which is the business logic that we want to execute. This is split
+  * so that we can run this in unit testing with mock layers
+  *
+  * The second part is `run` which is executed when we run the compiled jar. This will have
+  * the layers defined for the live runtime
+  */
 @SuppressWarnings(
   Array("org.wartremover.warts.Nothing", "org.wartremover.warts.Any", "org.wartremover.warts.ImplicitConversion"))
 object Main extends zio.App {
@@ -56,6 +64,8 @@ object Main extends zio.App {
       _ <- ZIO.foreach(actorFilmCount.collect())(r => putStrLn(s"${r.actor_name} -> ${r.film_count}"))
     } yield ()
 
+  /* This is the function that will be executed by ZIO when we pass Main class to be executed
+   */
   override def run(args: List[String]): ZIO[ZEnv, Nothing, ExitCode] =
     (prog
       .provideLayer(

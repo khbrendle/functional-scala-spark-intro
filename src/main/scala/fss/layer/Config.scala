@@ -1,7 +1,21 @@
 package fss.layer
 
-import zio.{Has, RIO, Task, TaskLayer, ZIO, ZLayer}
+import zio.{Has, RIO, TaskLayer, ZIO, ZLayer}
 
+/** This object will contain our config layer, this should encapsulate our access to configuration.
+  *
+  * The [[Config.Service]] object defines the methods that will be implemented by the layer.
+  *
+  * We will use [[Config.configLayer]] to access these functions from within a function that
+  * has the layer as part of it's environment.
+  *
+  * For our deployed runtime, we will use [[Config.Live]] to provide access to our actual configuration
+  * with full implementations of [[Config.Service]] methods.
+  *
+  * For testing purposes, we will use [[Config.Test]] to provide access to mock implementations
+  * of [[Config.Service]]. When we initialize this layer we can pass the mock data that is
+  * required.
+  */
 @SuppressWarnings(Array("org.wartremover.warts.Nothing"))
 object Config {
 
@@ -17,7 +31,7 @@ object Config {
   /** Defines methods that will be implimented by the layer
     */
   trait Service {
-    def envGet(e: EnvVar): Task[String]
+    def envGet(e: EnvVar): RIO[Has[Service], String]
   }
 
   /** Defines the environment requirements for the config layer
@@ -43,7 +57,7 @@ object Config {
       * @param e [[EnvVar]] for the requesting variable
       * @return [[Task]][ [[String]] ] representing the variable set
       */
-    override def envGet(e: EnvVar): Task[String] =
+    override def envGet(e: EnvVar): RIO[Has[Service], String] =
       ZIO.getOrFailWith[Throwable, String](new Error(s"could not source EnvVar `${e}`"))(
         env.getOrElse(e, None)
       )
@@ -55,14 +69,12 @@ object Config {
     val layer: Env = ZLayer.succeed(Live())
   }
 
-  // testing resources
-
   /** Returns a mock environment based on the input variable map
     *
-    * @param env [[Map]][ [[EnvVar]], [[Option]][ [[String]] ] ]
+    * @param envGet [[Map]][ [[EnvVar]], [[Option]][ [[String]] ] ]
     */
-  final case class Test(val env: Map[EnvVar, Option[String]]) extends Service {
-    def envGet(e: EnvVar): Task[String] =
+  final case class Test(env: Map[EnvVar, Option[String]]) extends Service {
+    def envGet(e: EnvVar): RIO[Has[Service], String] =
       ZIO.getOrFailWith(new Error(s"could not source EnvVar `${e}`"))(
         env.getOrElse(e, None)
       )
@@ -72,8 +84,8 @@ object Config {
 
     /** Returns the mock config layer
       *
-      * @param env
-      * @return
+      * @param env: [[Map]][ [[Config.EnvVar]], [[Option]][ [[String]] ] ]
+      * @return [[Config.Env]]
       */
     def layer(env: Map[EnvVar, Option[String]]): Env = {
       ZLayer.succeed(Test(env))

@@ -10,13 +10,27 @@ import java.util.Properties
 import scala.collection.JavaConverters.mapAsJavaMap
 import scala.reflect.runtime.universe.TypeTag
 
+/** This object will contain our Spark layer, this should encapsulate our access to spark.
+  *
+  * The [[Spark.Service]] object defines the methods that will be implemented by the layer.
+  *
+  * We will use [[Spark.sparkLayer]] to access these functions from within a function that
+  * has the layer as part of it's environment.
+  *
+  * For our deployed runtime, we will use [[Spark.Live]] to provide access to our actual Spark
+  * with full implementations of [[Spark.Service]] methods.
+  *
+  * For testing purposes, we will use [[Spark.Test]] to provide access to mock implementations
+  * of [[Spark.Service]]. When we initialize this layer we can pass the mock data that is
+  * required.
+  */
 @SuppressWarnings(Array("org.wartremover.warts.Nothing", "org.wartremover.warts.Any"))
 object Spark {
-  // definition
+
   /** Defines the methods that will be implemented by the layer
     */
   trait Service {
-    def _spark: Task[SparkSession]
+    def _spark: RIO[Has[Service], SparkSession]
     def readDatabase[A <: Product: TypeTag](
         table: String,
         host: String,
@@ -24,7 +38,7 @@ object Spark {
         database: String,
         user: String,
         password: String
-    ): ZIO[Has[Service], Throwable, Dataset[A]]
+    ): RIO[Has[Service], Dataset[A]]
   }
 
   /** Defines the layer that will be created
@@ -34,7 +48,6 @@ object Spark {
     Has[Service]
   ]
 
-  // accessor
   /** Accessor object for layer methods
     */
   object sparkLayer {
@@ -55,15 +68,13 @@ object Spark {
   private def postgresURI(host: String, port: Long, database: String): UIO[String] =
     ZIO.succeed(s"jdbc:postgresql://$host:$port/$database")
 
-  // Live
-
   /** Return the live implementation of the spark layer. This will source
     * from the system to initiate a spark connection to provide required
     * methods
     */
   final case class Live(config: ConfigService, blocking: Blocking.Service, console: Console.Service) extends Service {
     @SuppressWarnings(Array("org.wartremover.warts.Any"))
-    override val _spark: Task[SparkSession] =
+    override val _spark: RIO[Has[Service], SparkSession] =
       for {
         appName <- config.envGet(EnvVar.AppName)
         spark <- blocking.effectBlocking(
@@ -80,7 +91,7 @@ object Spark {
         database: String,
         user: String,
         password: String
-    ): ZIO[Has[Service], Throwable, Dataset[A]] = {
+    ): RIO[Has[Service], Dataset[A]] = {
       for {
         spark <- _spark
         host <- postgresURI(host, port, database)
@@ -102,11 +113,13 @@ object Spark {
 
     /** constructed layer to be used in our application
       */
-    val layer: Env = (Live(_: ConfigService, _: Blocking.Service, _: Console.Service)).toLayer
+    val layer: Env = (Live(_, _, _)).toLayer
   }
 
-  // testing
   /** Returns a mock spark handler that runs on our development machine
+    *
+    * This function is curried so that we can execute `Test(mockData)` which
+    * returns the layer still needing config, blocking, and console passed in
     */
   final case class Test(databaseData: Map[String, Seq[_]])(
       config: ConfigService,
@@ -114,7 +127,7 @@ object Spark {
       console: Console.Service
   ) extends Service {
     @SuppressWarnings(Array("org.wartremover.warts.Any"))
-    override val _spark: Task[SparkSession] =
+    override val _spark: RIO[Has[Service], SparkSession] =
       for {
         appName <- config.envGet(EnvVar.AppName)
         spark <- blocking.effectBlocking(
@@ -135,7 +148,7 @@ object Spark {
         database: String,
         user: String,
         password: String
-    ): ZIO[Has[Service], Throwable, Dataset[A]] = {
+    ): RIO[Has[Service], Dataset[A]] = {
       for {
         _ <- console.putStrLn("importing spark session")
         spark <- _spark
