@@ -30,7 +30,7 @@ object Spark {
   /** Defines the methods that will be implemented by the layer
     */
   trait Service {
-    def _spark: RIO[Has[Service], SparkSession]
+    def _spark: Task[SparkSession]
     def readDatabase[A <: Product: TypeTag](
         table: String,
         host: String,
@@ -38,7 +38,7 @@ object Spark {
         database: String,
         user: String,
         password: String
-    ): RIO[Has[Service], Dataset[A]]
+    ): Task[Dataset[A]]
   }
 
   /** Defines the layer that will be created
@@ -74,7 +74,7 @@ object Spark {
     */
   final case class Live(config: ConfigService, blocking: Blocking.Service, console: Console.Service) extends Service {
     @SuppressWarnings(Array("org.wartremover.warts.Any"))
-    override val _spark: RIO[Has[Service], SparkSession] =
+    override val _spark: Task[SparkSession] =
       for {
         appName <- config.envGet(EnvVar.AppName)
         spark <- blocking.effectBlocking(
@@ -91,7 +91,7 @@ object Spark {
         database: String,
         user: String,
         password: String
-    ): RIO[Has[Service], Dataset[A]] = {
+    ): Task[Dataset[A]] = {
       for {
         spark <- _spark
         host <- postgresURI(host, port, database)
@@ -127,7 +127,7 @@ object Spark {
       console: Console.Service
   ) extends Service {
     @SuppressWarnings(Array("org.wartremover.warts.Any"))
-    override val _spark: RIO[Has[Service], SparkSession] =
+    override val _spark: Task[SparkSession] =
       for {
         appName <- config.envGet(EnvVar.AppName)
         spark <- blocking.effectBlocking(
@@ -148,7 +148,7 @@ object Spark {
         database: String,
         user: String,
         password: String
-    ): RIO[Has[Service], Dataset[A]] = {
+    ): Task[Dataset[A]] = {
       for {
         _ <- console.putStrLn("importing spark session")
         spark <- _spark
