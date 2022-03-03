@@ -5,7 +5,6 @@ import zio.console.Console
 import zio.blocking.Blocking
 import fss.layer.Spark.{Test => SparkTest}
 import fss.layer.Config.{EnvVar, Test => ConfigTest}
-import fss.app.Types.Film
 import fss.app.TestData._
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should
@@ -21,7 +20,7 @@ class App extends AnyFunSpec with should.Matchers {
       val testConfig = ConfigTest.layer(Map(EnvVar.AppName -> Some("unit-testing")))
       val testSpark =
         (testConfig ++ Blocking.live ++ Console.live) >>> SparkTest.layer(
-          Map(
+          Map[String, Seq[_]](
             "film" -> Seq(defaultFilm),
             "film_actor" -> Seq(defaultFilmActor),
             "actor" -> Seq(defaultActor)

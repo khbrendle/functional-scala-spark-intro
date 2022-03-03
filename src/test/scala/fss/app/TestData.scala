@@ -27,7 +27,7 @@ object TestData {
     last_update = java.sql.Timestamp.valueOf("2020-01-01 15:58:30")
   )
 
-  val defaultFilmActor = FilmActor(
+  val defaultFilmActor: FilmActor = FilmActor(
     actor_id = 111,
     film_id = 101,
     last_update = java.sql.Timestamp.valueOf("2022-03-01 12:30:15")
